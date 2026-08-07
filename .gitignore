@@ -1,0 +1,15 @@
+# Binaries
+/bin/
+*.exe
+*.test
+
+# Output
+/output/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Go modules
+vendor/

@@ -1,9 +1,11 @@
-package camera
+﻿package camera
 
 import (
 	"fmt"
 	"image"
+	"image/jpeg"
 	"log"
+	"os"
 	"time"
 
 	"gocv.io/x/gocv"
@@ -14,31 +16,15 @@ type GoCVDriver struct {
 }
 
 func NewGoCVDriver(deviceID int) (*GoCVDriver, error) {
-	log.Printf("▶ Открываем камеру с индексом %d", deviceID)
+	log.Printf("Попытка открыть камеру с индексом %d", deviceID)
 	webcam, err := gocv.OpenVideoCapture(deviceID)
 	if err != nil {
-		log.Printf("❌ Ошибка OpenVideoCapture: %v", err)
 		return nil, fmt.Errorf("не удалось открыть камеру %d: %v", deviceID, err)
 	}
-	// Проверяем, что камера реально открыта, пытаясь прочитать один раз
-	// Это часто выявляет проблемы
-	testMat := gocv.NewMat()
-	defer testMat.Close()
-	if !webcam.Read(&testMat) {
-		log.Printf("❌ Не удалось прочитать тестовый кадр при открытии")
-		webcam.Close()
-		return nil, fmt.Errorf("камера %d не даёт кадр", deviceID)
-	}
-	if testMat.Empty() {
-		log.Printf("❌ Тестовый кадр пуст")
-		webcam.Close()
-		return nil, fmt.Errorf("камера %d вернула пустой кадр", deviceID)
-	}
-	log.Printf("✅ Камера %d успешно открыта, тестовый кадр получен (%dx%d)", deviceID, testMat.Cols(), testMat.Rows())
-	// Устанавливаем разрешение (если поддерживается)
 	webcam.Set(gocv.VideoCaptureFrameWidth, 640)
 	webcam.Set(gocv.VideoCaptureFrameHeight, 480)
-	time.Sleep(200 * time.Millisecond) // даём камере стабилизироваться
+	time.Sleep(300 * time.Millisecond)
+	log.Printf("Камера %d открыта", deviceID)
 	return &GoCVDriver{webcam: webcam}, nil
 }
 
@@ -46,20 +32,28 @@ func (d *GoCVDriver) Capture() (image.Image, error) {
 	img := gocv.NewMat()
 	defer img.Close()
 	if !d.webcam.Read(&img) {
-		log.Printf("❌ Capture: Read вернул false")
-		return nil, fmt.Errorf("не удалось получить кадр")
+		return nil, fmt.Errorf("не удалось получить кадр с камеры")
 	}
-	log.Printf("📸 Capture: получен кадр %dx%d, каналов %d", img.Cols(), img.Rows(), img.Channels())
 	if img.Empty() {
-		log.Printf("❌ Capture: кадр пуст")
 		return nil, fmt.Errorf("получен пустой кадр")
 	}
-	res, err := img.ToImage()
-	if err != nil {
-		log.Printf("❌ Capture: ToImage ошибка: %v", err)
-		return nil, fmt.Errorf("ошибка конвертации: %v", err)
+	// Сохраняем кадр во временный файл
+	tmpFile := "temp_capture.jpg"
+	if ok := gocv.IMWrite(tmpFile, img); !ok {
+		return nil, fmt.Errorf("не удалось сохранить временный файл")
 	}
-	log.Printf("✅ Capture: успешно конвертирован")
+	// Читаем обратно как image.Image
+	f, err := os.Open(tmpFile)
+	if err != nil {
+		return nil, fmt.Errorf("не удалось открыть временный файл: %v", err)
+	}
+	defer f.Close()
+	res, err := jpeg.Decode(f)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка декодирования JPEG: %v", err)
+	}
+	// Удаляем временный файл (опционально)
+	// os.Remove(tmpFile)
 	return res, nil
 }
 

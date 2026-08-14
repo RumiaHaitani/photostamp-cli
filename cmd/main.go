@@ -9,10 +9,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"photostamp-cli/internal/camera"
+	"photostamp-cli/internal/watermark"
 	"time"
-
-	"photostamp-cli/pkg/camera"
-	"photostamp-cli/pkg/watermark"
 )
 
 // loadWatermark загружает PNG из файла один раз при старте
